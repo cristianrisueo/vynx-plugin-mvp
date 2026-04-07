@@ -1,0 +1,9 @@
+# Dotenv file
+.env
+
+# Claude
+.claude/
+CLAUDE.md
+
+# Spec files
+vynx_plugin_spec.md

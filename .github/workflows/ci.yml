@@ -1,0 +1,44 @@
+name: VynX AgentKit Plugin CI
+
+# Triggers the workflow on push or pull request events for main branches
+on:
+  push:
+    branches: ["master", "main"]
+  pull_request:
+    branches: ["master", "main"]
+
+jobs:
+  institutional-audit:
+    runs-on: ubuntu-latest
+    steps:
+      # Step 1: Check out the repository code
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # Step 2: Setup Node.js environment
+      # Using v24 as it is the current LTS and optimized for modern ESM required by AgentKit
+      - name: Setup Node.js (v24 LTS)
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24.x"
+          cache: "npm"
+
+      # Step 3: Deterministic dependency installation
+      # Using 'npm ci' instead of 'npm install' to strictly enforce the package-lock.json
+      - name: Clean Install Dependencies
+        run: npm ci
+
+      # Step 4: Strict type checking and decorator validation
+      # Fails if there are any discrepancies in 'experimentalDecorators' or EIP-712 typings
+      - name: Strict Typecheck (AgentKit Decorators)
+        run: make build
+
+      # Step 5: Code hygiene and linting
+      # Executes Biome/ESLint to ensure code formatting and detect prohibited practices
+      - name: Formatting & Linting
+        run: make lint
+
+      # Step 6: Segregated unit tests and coverage
+      # Guarantees that Zod schemas, network mocks, and EIP-712 signatures meet 100% coverage
+      - name: Test Suite & Coverage
+        run: make test
