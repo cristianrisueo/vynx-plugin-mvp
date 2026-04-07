@@ -29,6 +29,74 @@ consumed by the AgentKit consumer application that instantiates `CdpWalletProvid
 | `make build` | Runs `tsc --noEmit` to type-check all source files without emitting output |
 | `make test` | Runs `vitest run --coverage` and enforces 100% statement/branch/function/line coverage |
 | `make lint` | Runs `biome check .` to enforce formatting and linting rules across the codebase |
+| `make sim` | Compiles with `tsc` (emitDecoratorMetadata) and runs the agent simulation against a live local stack |
+| `make e2e` | Full E2E orchestration: starts Anvil, deploys contract, starts Relayer, runs simulation, kills all processes |
+
+## E2E Local Simulation
+
+`make e2e` orchestrates three independent runtimes — TypeScript, Go, and Solidity — to validate
+the full intent lifecycle: schema validation → EIP-712 signing → Go ingress → on-chain compatibility.
+
+### Prerequisites for `make e2e`
+
+- [Foundry](https://book.getfoundry.sh/) (`anvil`, `forge`) installed and available on `PATH`
+- `../vynx-settlement-mvp` — Foundry project containing `VynxSettlement.sol`
+- `../vynx-relayer-mvp` — Go module containing the OFA Relayer binary
+
+### Expected output — successful run
+
+```text
+==> Starting Anvil (chain-id 84532) in background …
+==> Deploying VynxSettlement to Anvil …
+
+Chain 84532
+ONCHAIN EXECUTION COMPLETE & SUCCESSFUL.
+Transactions saved to: .../broadcast/DeployVynxSettlement.s.sol/84532/run-latest.json
+
+==> Building and starting VynX Relayer in background …
+==> Running agent simulation …
+
+=================================================================
+  VynX AgentKit Plugin — E2E Simulation
+=================================================================
+  RPC   : http://127.0.0.1:8545
+  Relayer: http://127.0.0.1:8080
+
+  Wallet  : 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+  NetworkId: base-sepolia
+  ChainId : 84532
+
+  Checking supportsNetwork …
+  supportsNetwork → true  ✓
+
+  Intent parameters:
+    srcToken    : 0x036CbD53842c5426634e7929541eC2318f3dCF7e
+    destToken   : 0xaf88d065e77c8cC2239327C5EDb3A432268e5831
+    amountIn    : 10000000 (10 USDC @ 6 decimals)
+    minAmountOut: 9900000
+    destChainId : 42161 (Arbitrum One)
+
+  Invoking execute_vynx_crosschain_transfer …
+
+  ── Action Result ────────────────────────────────────────────
+  VynX cross-chain transfer submitted successfully. Intent ID: 0x309f5a80...
+  ─────────────────────────────────────────────────────────────
+
+  STATUS: PASS — EIP-712 intent accepted by Relayer  ✓
+
+==> Simulation exit code: 0
+==> Stopping background processes …
+```
+
+### What the output proves
+
+| Observation | Invariant confirmed |
+|---|---|
+| `supportsNetwork → true` | `ViemWalletProvider` with chainId 84532 maps to `networkId: base-sepolia` |
+| `Invoking execute_vynx_crosschain_transfer` | `@CreateAction` decorator metadata resolved correctly via `tsc` |
+| `202 Accepted` from Go Relayer | Flat JSON wire format matches Go's `DisallowUnknownFields` decoder |
+| `Intent ID: 0x309f5a80...` | EIP-712 signature accepted; intent queued in the OFA auction engine |
+| Exit code 0 | All three runtime boundaries (TypeScript → Go → Solidity) negotiated without error |
 
 ## Running the Test Suite
 

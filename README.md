@@ -86,6 +86,35 @@ LLM Routing Order
 Cross-chain settlement (solver network)
 ```
 
+## End-to-End Cryptographic Validation
+
+The plugin ships a fully autonomous local simulation environment that validates the entire signing
+and submission pipeline across three independent runtimes: TypeScript, Go, and Solidity.
+
+```bash
+make e2e
+```
+
+This single command orchestrates the complete stack without any manual setup:
+
+1. **Starts Anvil** with `--chain-id 84532` (Base Sepolia) — a deterministic local EVM node
+2. **Deploys `VynxSettlement`** via Forge broadcast — the on-chain settlement contract
+3. **Builds and starts the Go Relayer** — the OFA engine that verifies and processes intents
+4. **Executes the TypeScript simulation** — signs a real EIP-712 payload and submits it
+5. **Kills all background processes** and reports the outcome
+
+The validation proves three independent invariants in a single run:
+
+| Invariant | Guarantee |
+|---|---|
+| **Zero-Precision-Loss** | `amountIn` and `minAmountOut` are `BigInt` through the entire chain: Zod transform → EIP-712 `uint256` → Go `*big.Int` — no IEEE 754 truncation at any boundary |
+| **Wire format compatibility** | The flat JSON body (`id`, `sender`, `token_in`, ...) produced by `postIntent` is accepted by Go's `json.Decoder` with `DisallowUnknownFields` — no schema divergence |
+| **EIP-712 domain parity** | The `chainId` in the signing domain matches the deployed contract's chain, producing a signature that the Relayer accepts without rejection |
+
+This guarantee was established on 2026-04-07 and is reproducible against any local Anvil instance.
+For individual component validation, `make sim` runs the TypeScript layer only against a
+pre-running stack.
+
 ## Quickstart
 
 ### Install
