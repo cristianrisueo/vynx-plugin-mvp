@@ -19,6 +19,53 @@ on the injected provider and receives a signature; it never reads, stores, or de
 of any kind. This delegation model satisfies institutional custody requirements for autonomous
 agent deployments.
 
+## Institutional Trust Model & Delegated Custody
+
+The VynX AgentKit Plugin is engineered as a **Zero-Trust Intermediary**. It is positioned in the
+agent execution pipeline precisely because it cannot — by construction — assume custody of any
+asset, key, or credential. The plugin observes a structured intent, requests a signature from an
+external authority, and forwards the result. It holds nothing.
+
+This model is what makes the plugin deployable inside regulated institutional environments. The
+trust boundary lives entirely outside the plugin: signing authority is held by the
+**Coinbase Developer Platform (CDP) MPC infrastructure**, which enforces multi-party computation
+custody policies, role-based access controls, and operational audit trails at the wallet layer.
+The plugin invokes `signTypedData` on the injected `EvmWalletProvider`, and the CDP backend
+applies its own institutional approval logic before returning a signature. At no point does the
+plugin observe, derive, or persist key material.
+
+The result is a sharp separation of concerns:
+
+| Layer | Authority | Held By |
+|---|---|---|
+| Intent construction | Cognitive autonomy | The LLM agent |
+| Intent validation and standardisation | Protocol logic | This plugin (stateless) |
+| Signing authority | Custodial control | Coinbase CDP MPC |
+| Settlement execution | Solver competition | VynX Core Protocol Relayer |
+
+Institutions retain complete custodial control over agent funds while granting the cognitive layer
+the autonomy required to operate at machine speed. The agent decides *what* to settle; the
+institution, through CDP policy, decides *whether* the signature is released. Custody is never
+ceded — only delegated under policy.
+
+## Connection to the VynX Core Protocol
+
+This plugin is the **Hot Path Ingress** of the broader VynX Core Protocol. It is the front door
+through which all agent-originated intents enter the system, but it is deliberately minimal: its
+sole responsibility is to standardise, sign, and forward. Everything that happens after the
+`POST /v1/intents` call belongs to the Core Protocol.
+
+The Core Protocol is implemented as a high-frequency **Order Flow Auction (OFA) engine** written
+in Go. It ingests signed intents from this plugin, runs them through a competitive solver auction,
+selects the optimal execution path, and coordinates cross-chain finality on the destination chain.
+The Go engine is optimised for throughput and deterministic latency budgets — concerns that would
+be inappropriate to embed in an LLM-facing TypeScript module.
+
+The architectural split is intentional: the TypeScript plugin lives in the cognitive plane,
+written for clarity, type safety, and LLM ergonomics; the Go OFA engine lives in the execution
+plane, written for raw throughput and matching engine determinism. This plugin is the bridge
+between those two planes.
+
 ## Data Flow
 
 ```mermaid

@@ -55,11 +55,11 @@ hallucinating values.
 
 | Prompt | Notes |
 |---|---|
-| `Bridge 1000000000000000000 wei of USDC (0xA0b8...eB48) from Base to Arbitrum (chain 42161), minimum output 990000000000000000 wei` | Explicit wei amounts prevent unit ambiguity |
-| `Transfer 500000000 USDC (0xA0b8...eB48) to Optimism (chain 10), accept at least 495000000 on arrival` | USDC at 6 decimals |
-| `Use VynX to move ETH (0x4200...0006) to Polygon (chain 137), amount 1000000000000000000 wei, slippage 1%` | Slippage expressed as a ratio is unambiguous |
-| `Execute a cross-chain swap of WBTC (0x2260...c7F5) on Base to Arbitrum (42161), amount 100000000 satoshis, minimum out 99000000` | WBTC at 8 decimals |
-| `Submit a VynX intent: destChainId 42161, srcToken 0xA0b8...eB48, destToken 0xFF97...0099, amountIn 1000000000000000000, minAmountOut 980000000000000000` | Structured form for deterministic triggering |
+| `Submit a VynX cross-chain settlement order: route 1000000000000000000 base units of token 0xA0b8869c1Bbef9D2E2c1E3a3F71f85c9d6E57eB48 from Base to chain 42161, accept no less than 990000000000000000 base units on arrival.` | Explicit base-unit amounts prevent unit ambiguity |
+| `Initiate an institutional VynX transfer: source token 0xA0b8869c1Bbef9D2E2c1E3a3F71f85c9d6E57eB48, destination chain 10, amount in 500000000, minimum amount out 495000000.` | USDC at 6 decimals; corporate phrasing |
+| `Execute a delegated cross-chain settlement via VynX. Source token: 0x4200000000000000000000000000000000000006. Destination chain: 137. Amount in: 1000000000000000000. Minimum amount out: 990000000000000000.` | Structured field-by-field instruction |
+| `Open a VynX intent for treasury rebalancing. Move 100000000 base units of 0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599 from Base to chain 42161. Minimum acceptable receipt on destination: 99000000 base units.` | Treasury-style framing |
+| `Dispatch a cross-chain settlement instruction through the VynX Action Provider. Parameters — destChainId: 42161, srcToken: 0xA0b8869c1Bbef9D2E2c1E3a3F71f85c9d6E57eB48, destToken: 0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8, amountIn: 1000000000000000000, minAmountOut: 980000000000000000.` | Strictly parametric form for deterministic tool selection |
 
 > **Best practice:** Always supply token amounts in base units (wei, satoshis, or the token's
 > smallest denomination) to avoid Zod validation failures caused by decimal or scientific notation
@@ -67,13 +67,13 @@ hallucinating values.
 
 ## Schema Reference
 
-| Field | Input Type | Parsed Type | Description |
-|---|---|---|---|
-| `destChainId` | `number` | `number` | Destination chain ID as a plain positive integer (e.g. `42161` for Arbitrum). Maximum: `4294967295`. |
-| `srcToken` | `string` | `string` | 0x-prefixed EVM contract address of the input token on the origin chain. Must be exactly 42 characters. |
-| `destToken` | `string` | `string` | 0x-prefixed EVM contract address of the desired output token on the destination chain. Must be exactly 42 characters. |
-| `amountIn` | `string` | `bigint` | Exact amount to lock in base units as a decimal digit-only string. No decimal point, no exponent, no sign prefix. |
-| `minAmountOut` | `string` | `bigint` | Minimum acceptable amount to receive on the destination chain. `"0"` disables slippage protection entirely. |
+| Field          | Input Type | Parsed Type | Validation                              | Description                                                                                                                |
+| -------------- | ---------- | ----------- | --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `destChainId`  | `number`   | `number`    | Positive integer, max `4294967295`      | Destination chain identifier as a plain unsigned 32-bit integer (e.g. `42161` for Arbitrum One, `10` for OP Mainnet).      |
+| `srcToken`     | `string`   | `string`    | `/^0x[a-fA-F0-9]{40}$/`                 | 0x-prefixed EVM contract address of the input token on the origin chain. Must be exactly 42 characters.                   |
+| `destToken`    | `string`   | `string`    | `/^0x[a-fA-F0-9]{40}$/`                 | 0x-prefixed EVM contract address of the desired output token on the destination chain. Must be exactly 42 characters.     |
+| `amountIn`     | `string`   | `bigint`    | `/^\d+$/`, transformed via `BigInt()`   | Exact amount to lock, expressed in base units as a decimal digit-only string. No decimal point, exponent, or sign prefix. |
+| `minAmountOut` | `string`   | `bigint`    | `/^\d+$/`, transformed via `BigInt()`   | Minimum acceptable amount to receive on the destination chain, in base units. `"0"` disables slippage protection.         |
 
 ## Error Handling
 
