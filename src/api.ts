@@ -25,11 +25,26 @@ export async function postIntent(
   relayerUrl: string,
   payload: IntentPayload,
 ): Promise<RelayerResult> {
+  // Map the internal IntentPayload to the flat wire format the Relayer expects.
+  // srcChainId and destChainId are used only for EIP-712 signing and are not
+  // forwarded — the Relayer handles cross-chain routing internally.
+  const wireBody = {
+    id: payload.intent.intentId,
+    sender: payload.intent.agent,
+    token_in: payload.intent.srcToken,
+    token_out: payload.intent.destToken,
+    amount_in: payload.intent.amountIn,
+    min_amount_out: payload.intent.minAmountOut,
+    deadline: payload.intent.deadline,
+    nonce: 0,
+    signature: payload.signature,
+  };
+
   try {
-    const response = await fetch(`${relayerUrl}/v1/intents`, {
+    const response = await fetch(`${relayerUrl}/v1/intent`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload, (_key, value) =>
+      body: JSON.stringify(wireBody, (_key, value) =>
         typeof value === "bigint" ? value.toString() : value,
       ),
       signal: AbortSignal.timeout(RELAYER_TIMEOUT_MS),
@@ -57,16 +72,16 @@ export async function postIntent(
     if (
       typeof parsed !== "object" ||
       parsed === null ||
-      !("intentId" in parsed) ||
-      typeof (parsed as Record<string, unknown>).intentId !== "string"
+      !("intent_id" in parsed) ||
+      typeof (parsed as Record<string, unknown>).intent_id !== "string"
     ) {
       return {
         ok: false,
-        error: `Relayer response is missing the required intentId field: ${text}`,
+        error: `Relayer response is missing the required intent_id field: ${text}`,
       };
     }
 
-    return { ok: true, intentId: (parsed as { intentId: string }).intentId };
+    return { ok: true, intentId: (parsed as { intent_id: string }).intent_id };
   } catch (err) {
     const isTimeout =
       err instanceof Error && (err.name === "AbortError" || err.name === "TimeoutError");

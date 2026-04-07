@@ -36,7 +36,7 @@ describe("postIntent", () => {
 
   it("returns ok:true with intentId on a 2xx response", async () => {
     fetchSpy.mockResolvedValueOnce(
-      new Response(JSON.stringify({ intentId: "0xdeadbeef01" }), {
+      new Response(JSON.stringify({ intent_id: "0xdeadbeef01", status: "queued" }), {
         status: 200,
         headers: { "Content-Type": "application/json" },
       }),
@@ -49,23 +49,46 @@ describe("postIntent", () => {
     expect(result.intentId).toBe("0xdeadbeef01");
   });
 
-  it("sends a POST request to /v1/intents with JSON content-type", async () => {
+  it("sends a POST request to /v1/intent with JSON content-type", async () => {
     fetchSpy.mockResolvedValueOnce(
-      new Response(JSON.stringify({ intentId: "0x01" }), { status: 200 }),
+      new Response(JSON.stringify({ intent_id: "0x01", status: "queued" }), { status: 200 }),
     );
 
     await postIntent(RELAYER_URL, MOCK_PAYLOAD);
 
     expect(fetchSpy).toHaveBeenCalledOnce();
     const [url, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe(`${RELAYER_URL}/v1/intents`);
+    expect(url).toBe(`${RELAYER_URL}/v1/intent`);
     expect(init.method).toBe("POST");
     expect((init.headers as Record<string, string>)["Content-Type"]).toBe("application/json");
   });
 
+  it("maps IntentPayload fields to the flat Relayer wire format", async () => {
+    fetchSpy.mockResolvedValueOnce(
+      new Response(JSON.stringify({ intent_id: "0x01", status: "queued" }), { status: 200 }),
+    );
+
+    await postIntent(RELAYER_URL, MOCK_PAYLOAD);
+
+    const [, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(init.body as string) as Record<string, unknown>;
+
+    expect(body.id).toBe(MOCK_PAYLOAD.intent.intentId);
+    expect(body.sender).toBe(MOCK_PAYLOAD.intent.agent);
+    expect(body.token_in).toBe(MOCK_PAYLOAD.intent.srcToken);
+    expect(body.token_out).toBe(MOCK_PAYLOAD.intent.destToken);
+    expect(body.amount_in).toBe(MOCK_PAYLOAD.intent.amountIn);
+    expect(body.min_amount_out).toBe(MOCK_PAYLOAD.intent.minAmountOut);
+    expect(body.deadline).toBe(MOCK_PAYLOAD.intent.deadline);
+    expect(body.signature).toBe(MOCK_PAYLOAD.signature);
+    // srcChainId and destChainId must NOT be forwarded (relayer uses DisallowUnknownFields)
+    expect(body).not.toHaveProperty("srcChainId");
+    expect(body).not.toHaveProperty("destChainId");
+  });
+
   it("serialises BigInt amounts as strings in the request body", async () => {
     fetchSpy.mockResolvedValueOnce(
-      new Response(JSON.stringify({ intentId: "0x01" }), { status: 200 }),
+      new Response(JSON.stringify({ intent_id: "0x01", status: "queued" }), { status: 200 }),
     );
 
     // Pass bigint values to exercise the JSON replacer branch.
@@ -81,9 +104,9 @@ describe("postIntent", () => {
     await postIntent(RELAYER_URL, payloadWithBigInt);
 
     const [, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
-    const body = JSON.parse(init.body as string) as { intent: { amountIn: unknown } };
-    expect(typeof body.intent.amountIn).toBe("string");
-    expect(body.intent.amountIn).toBe("1000000000000000000");
+    const body = JSON.parse(init.body as string) as { amount_in: unknown };
+    expect(typeof body.amount_in).toBe("string");
+    expect(body.amount_in).toBe("1000000000000000000");
   });
 
   // ---------------------------------------------------------------------------
@@ -149,7 +172,7 @@ describe("postIntent", () => {
     expect(result.error).toContain("not valid JSON");
   });
 
-  it("returns ok:false when the 200 body is JSON but missing intentId", async () => {
+  it("returns ok:false when the 200 body is JSON but missing intent_id", async () => {
     fetchSpy.mockResolvedValueOnce(
       new Response(JSON.stringify({ status: "queued" }), { status: 200 }),
     );
@@ -158,19 +181,19 @@ describe("postIntent", () => {
 
     expect(result.ok).toBe(false);
     if (result.ok) return;
-    expect(result.error).toContain("intentId");
+    expect(result.error).toContain("intent_id");
   });
 
-  it("returns ok:false when intentId is present but not a string", async () => {
+  it("returns ok:false when intent_id is present but not a string", async () => {
     fetchSpy.mockResolvedValueOnce(
-      new Response(JSON.stringify({ intentId: 12345 }), { status: 200 }),
+      new Response(JSON.stringify({ intent_id: 12345, status: "queued" }), { status: 200 }),
     );
 
     const result = await postIntent(RELAYER_URL, MOCK_PAYLOAD);
 
     expect(result.ok).toBe(false);
     if (result.ok) return;
-    expect(result.error).toContain("intentId");
+    expect(result.error).toContain("intent_id");
   });
 
   // ---------------------------------------------------------------------------

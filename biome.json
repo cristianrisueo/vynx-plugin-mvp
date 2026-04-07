@@ -13,7 +13,7 @@
     "lineWidth": 100
   },
   "files": {
-    "includes": ["**", "!node_modules", "!dist", "!coverage", "!.git"]
+    "includes": ["**", "!node_modules", "!dist", "!coverage", "!.git", "!.sim-dist"]
   },
   "javascript": {
     "formatter": {
