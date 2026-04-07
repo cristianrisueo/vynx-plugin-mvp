@@ -7,3 +7,9 @@ CLAUDE.md
 
 # Spec files
 vynx_plugin_spec.md
+
+# Node.js
+node_modules/
+dist/
+coverage/
+*.tgz

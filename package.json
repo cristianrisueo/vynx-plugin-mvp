@@ -1,0 +1,33 @@
+{
+  "name": "vynx-agentkit-plugin",
+  "version": "0.1.0",
+  "description": "Headless cross-chain asset transfer intent plugin for Coinbase AgentKit",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc --noEmit",
+    "test": "vitest run --coverage",
+    "lint": "biome check ."
+  },
+  "keywords": [
+    "agentkit",
+    "coinbase",
+    "cross-chain",
+    "eip-712",
+    "defi"
+  ],
+  "author": "VynX",
+  "license": "MIT",
+  "dependencies": {
+    "@coinbase/agentkit": "^0.10.4",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.4.10",
+    "@types/node": "^22.0.0",
+    "@vitest/coverage-v8": "^4.1.2",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.2"
+  }
+}
