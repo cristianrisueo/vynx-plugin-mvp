@@ -38,3 +38,38 @@ export const VynxTransferSchema = z
       .transform(BigInt),
   })
   .strip();
+
+// ---------------------------------------------------------------------------
+// EIP-712 Domain & Type Definitions (immutable — never mutate at runtime)
+// ---------------------------------------------------------------------------
+
+/**
+ * The EIP-712 domain separator for the VynX Settlement contract on Base.
+ * chainId is filled in at signing time from the walletProvider's active network.
+ */
+export const EIP712_DOMAIN_TEMPLATE = {
+  name: "VynX",
+  version: "1",
+  // verifyingContract is the deployed Settlement address on Base mainnet/sepolia.
+  // Injected at signing time alongside the live srcChainId.
+  verifyingContract: "0x0000000000000000000000000000000000000000" as `0x${string}`,
+} as const;
+
+/**
+ * The EIP-712 type map for the Intent struct.
+ * amountIn and minAmountOut are uint256 — they MUST be passed as BigInt to
+ * signTypedData to avoid silent JS number truncation before the ABI encoding.
+ */
+export const EIP712_TYPES = {
+  Intent: [
+    { name: "intentId", type: "bytes32" },
+    { name: "agent", type: "address" },
+    { name: "srcChainId", type: "uint256" },
+    { name: "destChainId", type: "uint256" },
+    { name: "srcToken", type: "address" },
+    { name: "destToken", type: "address" },
+    { name: "amountIn", type: "uint256" },
+    { name: "minAmountOut", type: "uint256" },
+    { name: "deadline", type: "uint256" },
+  ],
+} as const;
