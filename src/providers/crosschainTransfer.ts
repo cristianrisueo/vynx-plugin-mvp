@@ -1,4 +1,17 @@
+import "reflect-metadata";
+import {
+  ActionProvider,
+  CreateAction,
+  type EvmWalletProvider,
+  type Network,
+} from "@coinbase/agentkit";
 import { z } from "zod";
+import { postIntent } from "../api.js";
+import type { HexAddress, HexBytes32, IntentPayload, VynxIntent } from "../types.js";
+
+// ---------------------------------------------------------------------------
+// Zod Schema — LLM input validation (paranoid, zero-tolerance)
+// ---------------------------------------------------------------------------
 
 export const VynxTransferSchema = z
   .object({
@@ -73,3 +86,109 @@ export const EIP712_TYPES = {
     { name: "deadline", type: "uint256" },
   ],
 } as const;
+
+// ---------------------------------------------------------------------------
+// Relayer endpoint — override via VYNX_RELAYER_URL environment variable
+// ---------------------------------------------------------------------------
+
+const VYNX_RELAYER_URL = process.env.VYNX_RELAYER_URL ?? "https://relayer.vynx.finance";
+
+// ---------------------------------------------------------------------------
+// VynxActionProvider — the AgentKit Action Provider
+// ---------------------------------------------------------------------------
+
+export class VynxActionProvider extends ActionProvider<EvmWalletProvider> {
+  constructor() {
+    super("vynx-crosschain-provider", []);
+  }
+
+  /**
+   * Network firewall: only Base mainnet and Base Sepolia are accepted.
+   * Using an arrow-function property satisfies the abstract method requirement
+   * while keeping the binding stable for decorator metadata.
+   */
+  supportsNetwork = (network: Network): boolean =>
+    network.networkId === "base-mainnet" || network.networkId === "base-sepolia";
+
+  @CreateAction({
+    name: "execute_vynx_crosschain_transfer",
+    description:
+      "Generates a sub-millisecond cross-chain asset transfer intent via the VynX Relayer. " +
+      "Use this tool when asked to bridge or swap tokens across chains. " +
+      "The agent signs the intent with EIP-712 and submits it to the VynX Relayer REST API.",
+    schema: VynxTransferSchema,
+  })
+  async executeTransfer(
+    walletProvider: EvmWalletProvider,
+    args: z.infer<typeof VynxTransferSchema>,
+  ): Promise<string> {
+    try {
+      // 1. Validate origin network — hard firewall before any signing
+      const network = walletProvider.getNetwork();
+      if (!this.supportsNetwork(network)) {
+        return (
+          `Transfer rejected: active network '${network.networkId ?? "unknown"}' is not ` +
+          `supported. VynX operates on 'base-mainnet' or 'base-sepolia'.`
+        );
+      }
+
+      const rawChainId = network.chainId;
+      if (rawChainId === undefined) {
+        return "Transfer rejected: the wallet provider did not return a chainId for the active network.";
+      }
+
+      // 2. Generate a unique intent identifier (UUID padded to bytes32)
+      const intentId = `0x${crypto.randomUUID().replace(/-/g, "").padEnd(64, "0")}` as HexBytes32;
+
+      const agent = walletProvider.getAddress() as HexAddress;
+      const srcChainId = Number(rawChainId);
+      const deadline = Math.floor(Date.now() / 1000) + 300;
+
+      // 3. Build VynxIntent — string amounts for JSON-safe transport to the Relayer
+      const intent: VynxIntent = {
+        intentId,
+        agent,
+        srcChainId,
+        destChainId: args.destChainId,
+        srcToken: args.srcToken as HexAddress,
+        destToken: args.destToken as HexAddress,
+        amountIn: args.amountIn.toString(),
+        minAmountOut: args.minAmountOut.toString(),
+        deadline,
+      };
+
+      // 4. Sign EIP-712 structured data
+      //    uint256 fields MUST be BigInt — JS number cannot represent wei amounts precisely.
+      //    args.amountIn and args.minAmountOut are already bigint (Zod .transform(BigInt)).
+      const signature = await walletProvider.signTypedData({
+        domain: { ...EIP712_DOMAIN_TEMPLATE, chainId: BigInt(srcChainId) },
+        types: EIP712_TYPES,
+        primaryType: "Intent",
+        message: {
+          intentId: intent.intentId,
+          agent: intent.agent,
+          srcChainId: BigInt(srcChainId),
+          destChainId: BigInt(intent.destChainId),
+          srcToken: intent.srcToken,
+          destToken: intent.destToken,
+          amountIn: args.amountIn,
+          minAmountOut: args.minAmountOut,
+          deadline: BigInt(deadline),
+        },
+      });
+
+      // 5. Transmit signed intent to the VynX Relayer
+      const payload: IntentPayload = { intent, signature };
+      const result = await postIntent(VYNX_RELAYER_URL, payload);
+
+      if (!result.ok) {
+        return `VynX transfer failed: ${result.error}`;
+      }
+
+      return `VynX cross-chain transfer submitted successfully. Intent ID: ${result.intentId}`;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return `VynX transfer encountered an unexpected error: ${message}`;
+    }
+  }
+}
