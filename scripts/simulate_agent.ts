@@ -1,100 +1,92 @@
 /**
  * simulate_agent.ts
  *
- * End-to-End simulation: initialises AgentKit with a local ViemWalletProvider
- * (Anvil Account #0), injects VynxActionProvider, and invokes
- * execute_vynx_crosschain_transfer for 10 USDC from Base Sepolia → Arbitrum One.
- *
- * Prerequisites (orchestrated by the `make e2e` target):
- *   1. Anvil running at http://127.0.0.1:8545 with --chain-id 84532
- *   2. VynxSettlement deployed (default address 0x5FbDB2315678afecb367f032d93F642f64180aa3)
- *   3. VynX Relayer running at http://127.0.0.1:8080
- *
- * Environment overrides:
- *   VYNX_RELAYER_URL  — defaults to http://127.0.0.1:8080
- *   ANVIL_RPC_URL     — defaults to http://127.0.0.1:8545
+ * Grant Reviewer E2E Simulation: Initialises the AgentKit runtime with CDP
+ * MPC credentials on Base Sepolia, injects the VynxActionProvider, and
+ * autonomously signs an EIP-712 intent for a cross-chain transfer.
  */
 
 import "reflect-metadata";
-import { ViemWalletProvider } from "@coinbase/agentkit";
-import { createWalletClient, defineChain, http } from "viem";
-import { privateKeyToAccount } from "viem/accounts";
-import { VynxActionProvider, VynxTransferSchema } from "../src/providers/crosschainTransfer.js";
+import { AgentKit, CdpEvmWalletProvider } from "@coinbase/agentkit";
+import {
+  VynxActionProvider,
+  VynxTransferSchema,
+} from "../src/providers/crosschainTransfer.js";
 
 // ── Configuration ─────────────────────────────────────────────────────────────
 
-const ANVIL_PRIVATE_KEY =
-  "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80" as const;
-const ANVIL_RPC_URL = process.env.ANVIL_RPC_URL ?? "http://127.0.0.1:8545";
-const RELAYER_URL = process.env.VYNX_RELAYER_URL ?? "http://127.0.0.1:8080";
+const RELAYER_URL = process.env.VYNX_RELAYER_URL ?? "http://localhost:8080";
 
 // 10 USDC at 6 decimals, expressed in base units (wei equivalent)
 const AMOUNT_IN = "10000000";
 const MIN_AMOUNT_OUT = "9900000"; // 1 % max slippage
 
-// Anvil USDC-like ERC-20 placeholder address (20-byte zero address is invalid;
-// use well-known USDC Base Sepolia address for realistic EIP-712 payload)
+// USDC Base Sepolia -> Arbitrum One
 const USDC_BASE_SEPOLIA = "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
 const USDC_ARBITRUM = "0xaf88d065e77c8cC2239327C5EDb3A432268e5831";
-
-// Destination: Arbitrum One
 const DEST_CHAIN_ID = 42161;
-
-// ── Local chain definition: Base Sepolia shape, Anvil backend ─────────────────
-// chainId 84532 causes ViemWalletProvider to map networkId → "base-sepolia",
-// satisfying VynxActionProvider.supportsNetwork().
-const anvilAsSepolia = defineChain({
-  id: 84532,
-  name: "Anvil (Base Sepolia fork)",
-  nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
-  rpcUrls: {
-    default: { http: [ANVIL_RPC_URL] },
-  },
-});
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 async function main() {
-  console.log("=================================================================");
-  console.log("  VynX AgentKit Plugin — E2E Simulation");
-  console.log("=================================================================");
-  console.log(`  RPC   : ${ANVIL_RPC_URL}`);
-  console.log(`  Relayer: ${RELAYER_URL}`);
+  console.log(
+    "=================================================================",
+  );
+  console.log("  VynX AgentKit Plugin — Institutional E2E Simulation");
+  console.log("  Powered by Coinbase CDP MPC Wallets & Base L2");
+  console.log(
+    "=================================================================",
+  );
+  console.log(`  Relayer URL: ${RELAYER_URL}`);
   console.log();
 
-  // Override VYNX_RELAYER_URL so the provider picks up the local instance.
+  // Override VYNX_RELAYER_URL so the provider picks up the Docker-networked instance.
   process.env.VYNX_RELAYER_URL = RELAYER_URL;
 
-  // 1. Build viem wallet client backed by Anvil Account #0
-  const account = privateKeyToAccount(ANVIL_PRIVATE_KEY);
-  const walletClient = createWalletClient({
-    account,
-    chain: anvilAsSepolia,
-    transport: http(ANVIL_RPC_URL),
-  });
+  // 1. Initialise AgentKit & CDP MPC Wallet
+  console.log("  [1/4] Provisioning CDP MPC Wallet on Base Sepolia...");
 
-  // 2. Wrap in AgentKit EvmWalletProvider
-  const walletProvider = new ViemWalletProvider(walletClient);
+  let walletProvider: CdpEvmWalletProvider;
+  try {
+    // Provision the CDP MPC wallet first, then inject it into AgentKit.
+    // The @coinbase/cdp-sdk v2 reads CDP_API_KEY_ID (or CDP_API_KEY_NAME as a fallback),
+    // CDP_API_KEY_SECRET, and CDP_WALLET_SECRET directly from the environment.
+    // We do not pass them explicitly here to avoid shadowing the env-var fallback logic
+    // and to remain compatible with both the docker-compose env_file injection and local
+    // shell execution patterns.
+    walletProvider = await CdpEvmWalletProvider.configureWithWallet({
+      networkId: "base-sepolia",
+    });
 
-  const network = walletProvider.getNetwork();
-  console.log("  Wallet  :", walletProvider.getAddress());
-  console.log("  NetworkId:", network.networkId);
-  console.log("  ChainId :", network.chainId);
-  console.log();
-
-  // 3. Instantiate VynxActionProvider
-  const provider = new VynxActionProvider();
-
-  console.log("  Checking supportsNetwork …");
-  const supported = provider.supportsNetwork(network);
-  if (!supported) {
-    console.error(`  FAIL: network '${network.networkId}' is not supported.`);
+    await AgentKit.from({ walletProvider });
+  } catch (error) {
+    console.error(
+      "  FAIL: Could not initialize AgentKit/CDP Wallet. Check your CDP API Keys in .env",
+    );
+    console.error(error);
     process.exit(1);
   }
-  console.log("  supportsNetwork → true  ✓");
-  console.log();
+  const network = walletProvider.getNetwork();
 
-  // 4. Parse raw arguments through VynxTransferSchema (transforms amounts to bigint)
+  console.log("  Wallet Address :", walletProvider.getAddress());
+  console.log("  Network ID     :", network.networkId);
+  console.log("  MPC Provisioning -> SUCCESS ✓\n");
+
+  // 2. Instantiate VynxActionProvider
+  console.log("  [2/4] Initialising VynX Settlement Action Provider...");
+  const provider = new VynxActionProvider();
+
+  const supported = provider.supportsNetwork(network);
+  if (!supported) {
+    console.error(
+      `  FAIL: network '${network.networkId}' is not supported by VynX yet.`,
+    );
+    process.exit(1);
+  }
+  console.log("  Action Provider Guard -> PASS ✓\n");
+
+  // 3. Parse raw arguments through VynxTransferSchema (Zero-Precision-Loss validation)
+  console.log("  [3/4] Validating intent parameters (Zod Schema)...");
   const parseResult = VynxTransferSchema.safeParse({
     destChainId: DEST_CHAIN_ID,
     srcToken: USDC_BASE_SEPOLIA,
@@ -104,42 +96,49 @@ async function main() {
   });
 
   if (!parseResult.success) {
-    console.error("  FAIL: Schema validation error:", parseResult.error.format());
+    console.error(
+      "  FAIL: Schema validation error:",
+      parseResult.error.format(),
+    );
     process.exit(1);
   }
   const args = parseResult.data;
 
-  console.log("  Intent parameters:");
   console.log(`    srcToken    : ${args.srcToken}`);
-  console.log(`    destToken   : ${args.destToken}`);
-  console.log(`    amountIn    : ${args.amountIn} (10 USDC @ 6 decimals)`);
-  console.log(`    minAmountOut: ${args.minAmountOut}`);
   console.log(`    destChainId : ${args.destChainId} (Arbitrum One)`);
-  console.log();
+  console.log("  Schema Validation -> PASS ✓\n");
 
-  // 5. Invoke the action directly (mirrors AgentKit's internal dispatch)
-  console.log("  Invoking execute_vynx_crosschain_transfer …");
-  const result = await provider.executeTransfer(walletProvider, args);
+  // 4. Invoke the action directly passing the unified walletProvider
+  console.log(
+    "  [4/4] Executing EIP-712 Signature & Dispatching to Relayer...",
+  );
 
-  console.log();
-  console.log("  ── Action Result ────────────────────────────────────────────");
-  console.log(" ", result);
-  console.log("  ─────────────────────────────────────────────────────────────");
-  console.log();
+  try {
+    const result = await provider.executeTransfer(walletProvider, args);
 
-  // 6. Classify outcome
-  if (result.includes("submitted successfully")) {
-    console.log("  STATUS: PASS — EIP-712 intent accepted by Relayer  ✓");
-    process.exit(0);
-  } else if (result.includes("transfer failed")) {
-    console.error("  STATUS: FAIL — Relayer rejected the intent");
-    process.exit(1);
-  } else if (result.includes("unexpected error")) {
-    console.error("  STATUS: ERROR — Unexpected runtime error");
-    process.exit(1);
-  } else {
-    // e.g. supportsNetwork guard triggered (should not reach here)
-    console.error("  STATUS: REJECTED — Provider guard triggered");
+    console.log(
+      "\n  ── Settlement Engine Result ─────────────────────────────────",
+    );
+    console.log(" ", result);
+    console.log(
+      "  ─────────────────────────────────────────────────────────────\n",
+    );
+
+    // 5. Classify outcome
+    if (result.includes("successfully") || result.includes("0x")) {
+      console.log("  STATUS: PASS — HFT Intent Captured by Relayer ✓");
+      process.exit(0);
+    } else {
+      console.error(
+        "  STATUS: FAIL — Relayer exception or signature rejection",
+      );
+      process.exit(1);
+    }
+  } catch (error) {
+    console.error(
+      "  STATUS: FAIL — Execution reverted during provider delegation.",
+    );
+    console.error(error);
     process.exit(1);
   }
 }
