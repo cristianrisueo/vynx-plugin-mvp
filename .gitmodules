@@ -1,0 +1,9 @@
+[submodule "vynx-settlement-mvp"]
+	path = vynx-settlement-mvp
+	url = https://github.com/cristianrisueo/vynx-settlement-mvp.git
+[submodule "vynx-relayer-mvp"]
+	path = vynx-relayer-mvp
+	url = https://github.com/cristianrisueo/vynx-relayer-mvp.git
+[submodule "vynx-plugin-mvp"]
+	path = vynx-plugin-mvp
+	url = https://github.com/cristianrisueo/vynx-plugin-mvp.git
