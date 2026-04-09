@@ -6,5 +6,5 @@
     "sourceMap": false,
     "declaration": false
   },
-  "include": ["src/**/*.ts", "scripts/**/*.ts"]
+  "include": ["src/**/*.ts", "../scripts/run_workflow.ts"]
 }
