@@ -91,6 +91,12 @@ Cross-chain settlement (solver network)
 The plugin ships a fully autonomous local simulation environment that validates the entire signing
 and submission pipeline across three independent runtimes: TypeScript, Go, and Solidity.
 
+> **Full Docker-based E2E Demo:** The complete settlement stack — Go Relayer, live CDP MPC
+> wallet, and Mock Solver — is orchestrated from the monorepo root via `make reviewer-demo`.
+> The root-level orchestrator is `scripts/run_workflow.ts`, which imports this plugin as a
+> library and closes the loop via a WebSocket Mock Solver. The commands below describe isolated
+> plugin validation only.
+
 ```bash
 make e2e
 ```
@@ -116,6 +122,10 @@ For individual component validation, `make sim` runs the TypeScript layer only a
 pre-running stack.
 
 ## Quickstart
+
+> **Grant reviewer?** The full E2E simulation — Go Relayer + CDP MPC wallet + Mock Solver —
+> is a single command from the monorepo root: `make reviewer-demo`. The steps below describe
+> how to consume this plugin as a library in your own AgentKit application.
 
 ### Install
 

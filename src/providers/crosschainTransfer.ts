@@ -167,15 +167,15 @@ export class VynxActionProvider extends ActionProvider<EvmWalletProvider> {
         types: EIP712_TYPES,
         primaryType: "Intent",
         message: {
-          intentId:     intent.intentId,
-          agent:        intent.agent,
-          srcChainId:   Number(srcChainId),
-          destChainId:  Number(intent.destChainId),
-          srcToken:     intent.srcToken,
-          destToken:    intent.destToken,
-          amountIn:     Number(args.amountIn),
+          intentId: intent.intentId,
+          agent: intent.agent,
+          srcChainId: Number(srcChainId),
+          destChainId: Number(intent.destChainId),
+          srcToken: intent.srcToken,
+          destToken: intent.destToken,
+          amountIn: Number(args.amountIn),
           minAmountOut: Number(args.minAmountOut),
-          deadline:     Number(deadline),
+          deadline: Number(deadline),
         },
       });
 
