@@ -188,7 +188,7 @@ describe("VynxActionProvider", () => {
       ];
       expect(typedData.domain.name).toBe(EIP712_DOMAIN_TEMPLATE.name);
       expect(typedData.domain.version).toBe(EIP712_DOMAIN_TEMPLATE.version);
-      expect(typedData.domain.chainId).toBe(8453n);
+      expect(typedData.domain.chainId).toBe(8453);
     });
 
     it("passes the EIP712_TYPES Intent struct definition", async () => {
@@ -213,7 +213,7 @@ describe("VynxActionProvider", () => {
       expect(typedData.primaryType).toBe("Intent");
     });
 
-    it("passes amountIn and minAmountOut as BigInt in the message (uint256 safety)", async () => {
+    it("passes amountIn and minAmountOut as Number in the message (CDP JSON schema compatibility)", async () => {
       const wallet = makeMockWallet();
 
       await provider.executeTransfer(wallet, VALID_ARGS);
@@ -221,13 +221,13 @@ describe("VynxActionProvider", () => {
       const [typedData] = vi.mocked(wallet.signTypedData).mock.calls[0] as [
         { message: Record<string, unknown> },
       ];
-      expect(typeof typedData.message.amountIn).toBe("bigint");
-      expect(typeof typedData.message.minAmountOut).toBe("bigint");
-      expect(typedData.message.amountIn).toBe(BigInt("1000000000000000000"));
-      expect(typedData.message.minAmountOut).toBe(BigInt("990000000000000000"));
+      expect(typeof typedData.message.amountIn).toBe("number");
+      expect(typeof typedData.message.minAmountOut).toBe("number");
+      expect(typedData.message.amountIn).toBe(Number("1000000000000000000"));
+      expect(typedData.message.minAmountOut).toBe(Number("990000000000000000"));
     });
 
-    it("passes srcChainId, destChainId, and deadline as BigInt", async () => {
+    it("passes srcChainId, destChainId, and deadline as Number", async () => {
       const wallet = makeMockWallet();
 
       await provider.executeTransfer(wallet, VALID_ARGS);
@@ -235,11 +235,11 @@ describe("VynxActionProvider", () => {
       const [typedData] = vi.mocked(wallet.signTypedData).mock.calls[0] as [
         { message: Record<string, unknown> },
       ];
-      expect(typeof typedData.message.srcChainId).toBe("bigint");
-      expect(typeof typedData.message.destChainId).toBe("bigint");
-      expect(typeof typedData.message.deadline).toBe("bigint");
-      expect(typedData.message.srcChainId).toBe(8453n);
-      expect(typedData.message.destChainId).toBe(42161n);
+      expect(typeof typedData.message.srcChainId).toBe("number");
+      expect(typeof typedData.message.destChainId).toBe("number");
+      expect(typeof typedData.message.deadline).toBe("number");
+      expect(typedData.message.srcChainId).toBe(8453);
+      expect(typedData.message.destChainId).toBe(42161);
     });
 
     it("passes the agent address extracted from getAddress()", async () => {
