@@ -48,14 +48,32 @@ async function main() {
 
   let walletProvider: CdpEvmWalletProvider;
   try {
-    // Provision the CDP MPC wallet first, then inject it into AgentKit.
-    // The @coinbase/cdp-sdk v2 reads CDP_API_KEY_ID (or CDP_API_KEY_NAME as a fallback),
-    // CDP_API_KEY_SECRET, and CDP_WALLET_SECRET directly from the environment.
-    // We do not pass them explicitly here to avoid shadowing the env-var fallback logic
-    // and to remain compatible with both the docker-compose env_file injection and local
-    // shell execution patterns.
+    // Sanitize CDP credentials: Docker env_file injects multi-line PEM values as
+    // raw strings with literal \n sequences and surrounding double-quotes instead
+    // of actual newlines. The SDK does not sanitize env vars automatically, so we
+    // must do it before passing them in explicitly.
+    const sanitizedKeyId = (
+      process.env.CDP_API_KEY_NAME || process.env.CDP_API_KEY_ID || ""
+    ).replace(/^"|"$/g, "").trim();
+
+    // Prefer CDP_API_KEY_SECRET (PKCS8 PEM) over CDP_API_KEY_PRIVATE_KEY (SEC1 PEM).
+    // The SDK's JWT layer requires PKCS8 format; SEC1 fails importPKCS8 validation.
+    const sanitizedKeySecret = (
+      process.env.CDP_API_KEY_SECRET || process.env.CDP_API_KEY_PRIVATE_KEY || ""
+    )
+      .replace(/^"|"$/g, "")
+      .replace(/\\n/g, "\n")
+      .trim();
+
+    const sanitizedWalletSecret = (process.env.CDP_WALLET_SECRET || "")
+      .replace(/^"|"$/g, "")
+      .trim();
+
     walletProvider = await CdpEvmWalletProvider.configureWithWallet({
-      networkId: "base-sepolia",
+      apiKeyId:     sanitizedKeyId,
+      apiKeySecret: sanitizedKeySecret,
+      walletSecret: sanitizedWalletSecret,
+      networkId:    "base-sepolia",
     });
 
     await AgentKit.from({ walletProvider });

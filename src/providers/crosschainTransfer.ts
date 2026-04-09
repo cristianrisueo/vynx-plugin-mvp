@@ -158,22 +158,24 @@ export class VynxActionProvider extends ActionProvider<EvmWalletProvider> {
       };
 
       // 4. Sign EIP-712 structured data
-      //    uint256 fields MUST be BigInt — JS number cannot represent wei amounts precisely.
-      //    args.amountIn and args.minAmountOut are already bigint (Zod .transform(BigInt)).
+      //    CDP's cloud signing API validates the EIP712Message payload against its OpenAPI
+      //    schema, which requires uint256 fields to be JSON integers (not BigInt, which
+      //    serialises as a string).  All demo amounts fit within Number.MAX_SAFE_INTEGER
+      //    (~9e15), so Number() conversion is lossless for this MVP.
       const signature = await walletProvider.signTypedData({
-        domain: { ...EIP712_DOMAIN_TEMPLATE, chainId: BigInt(srcChainId) },
+        domain: { ...EIP712_DOMAIN_TEMPLATE, chainId: Number(srcChainId) },
         types: EIP712_TYPES,
         primaryType: "Intent",
         message: {
-          intentId: intent.intentId,
-          agent: intent.agent,
-          srcChainId: BigInt(srcChainId),
-          destChainId: BigInt(intent.destChainId),
-          srcToken: intent.srcToken,
-          destToken: intent.destToken,
-          amountIn: args.amountIn,
-          minAmountOut: args.minAmountOut,
-          deadline: BigInt(deadline),
+          intentId:     intent.intentId,
+          agent:        intent.agent,
+          srcChainId:   Number(srcChainId),
+          destChainId:  Number(intent.destChainId),
+          srcToken:     intent.srcToken,
+          destToken:    intent.destToken,
+          amountIn:     Number(args.amountIn),
+          minAmountOut: Number(args.minAmountOut),
+          deadline:     Number(deadline),
         },
       });
 
